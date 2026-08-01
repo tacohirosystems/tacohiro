@@ -8,21 +8,47 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/tacohirosystems/tacohiro/internal/discord"
 )
 
 type (
 	Handler struct {
-		Config *discord.DiscordConfig
+		DiscordBotConfig *discord.DiscordConfig
+		// FIXME: Placeholder
+		State InMemoryCounter
+		DiscordBotClient *discord.Client
+	}
+
+	InMemoryCounter struct {
+		sync.Mutex
+		SentLog map[string]int64
+		ReceivedLog map[string]int64
 	}
 )
 
-func (h Handler) Routes() {
+const (
+	SlashCommandGive discord.ApplicationCommandName = "give"
+)
+
+func (s *InMemoryCounter) GetSentLog() map[string]int64 {
+	s.Lock()
+	defer s.Unlock()
+	return s.SentLog
+}
+
+func (s *InMemoryCounter) GetReceivedLog() map[string]int64 {
+	s.Lock()
+	defer s.Unlock()
+	return s.ReceivedLog
+}
+
+func (h *Handler) Routes() {
 	http.HandleFunc("POST /api/discord/interactions", h.ProcessInteractions)
 }
 
-func (h Handler) ProcessInteractions(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ProcessInteractions(w http.ResponseWriter, r *http.Request) {
 	sigHex := r.Header.Get("X-Signature-Ed25519")
 	sig, err := hex.DecodeString(sigHex)
 	if err != nil {
@@ -35,15 +61,15 @@ func (h Handler) ProcessInteractions(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Print("invalid body format")
+		log.Print("Invalid body format")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	msg := fmt.Sprintf("%s%s", ts, body)
-	log.Printf("\n%s\n", msg)
-	if !ed25519.Verify(h.Config.PublicKey, []byte(msg), sig) {
-		log.Print("Invalid message")
+	// log.Printf("\n%s\n", msg)
+	if !ed25519.Verify(h.DiscordBotConfig.PublicKey, []byte(msg), sig) {
+		log.Print("Invalid message\n")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -51,24 +77,100 @@ func (h Handler) ProcessInteractions(w http.ResponseWriter, r *http.Request) {
 	var rawPayload map[string]any
 	err = json.Unmarshal(body, &rawPayload)
 	if err != nil {
-		log.Fatalf("failed to deserialize %s", err.Error())
+		log.Fatalf("failed to deserialize %s\n", err.Error())
 	}
 
 	switch discord.InteractionType(int8(rawPayload["type"].(float64))) {
 	case discord.InteractionTypePing:
 		w.Write(body)
 	case discord.InteractionTypeApplicationCommand:
-		var payload discord.Interaction[discord.ApplicationCommandData]
-		err = json.Unmarshal(body, &payload)
+		var interactionPayload discord.Interaction[discord.ApplicationCommandData]
+		err = json.Unmarshal(body, &interactionPayload)
 		if err != nil {
-			log.Fatalf("%s", err.Error())
+			log.Fatalf("failed to deserialize interaction: %s", err.Error())
 			return
 		}
 
-		log.Printf("%+v\n", payload)
-		log.Printf("Received a slash command: %s\n", payload.Data.Name)
+		log.Printf("Interaction payload: %+v\n", interactionPayload)
+		log.Printf("Received a slash command: %s\n", interactionPayload.Data.Name)
+		if interactionPayload.Data == nil {
+			return
+		}
+
+		h.processSlashCommand(interactionPayload)
+		log.Printf("Counters: %+v %+v", h.State.GetSentLog(), h.State.GetReceivedLog())
 		w.WriteHeader(http.StatusOK)
 	default:
 		w.WriteHeader(http.StatusOK)
+		return
+	}
+}
+
+func (h *Handler) processSlashCommand(interaction discord.Interaction[discord.ApplicationCommandData]) {
+	senderID := interaction.Member.User.ID
+	var recipientIDs []string
+	var quantity int64
+	switch interaction.Data.Name {
+	case SlashCommandGive:
+		// TODO: Check if recipient is a role, then we send to all members in that role.
+		// TODO: Check if recipient is a bot. Maybe consider allowing bots to send and receive.
+		for _, o := range interaction.Data.Options {
+			switch o.Name {
+			case CommandOptionNameRecipient:
+				if o.Value.ValueString == nil {
+					return
+				}
+				log.Printf("Recipient ID: %s\n", *o.Value.ValueString)
+				recipientIDs = append(recipientIDs, *o.Value.ValueString)
+			case CommandOptionNameRecipientExtra1:
+				if o.Value.ValueString == nil {
+					return
+				}
+				log.Printf("Recipient ID: %s\n", *o.Value.ValueString)
+				recipientIDs = append(recipientIDs, *o.Value.ValueString)
+			case CommandOptionNameRecipientExtra2:
+				if o.Value.ValueString == nil {
+					return
+				}
+				log.Printf("Recipient ID: %s\n", *o.Value.ValueString)
+				recipientIDs = append(recipientIDs, *o.Value.ValueString)
+			case "quantity":
+				if o.Value.ValueInt64 != nil {
+					log.Printf("Quantity of tacos: %d\n", *o.Value.ValueInt64)
+					quantity = *o.Value.ValueInt64
+				} else {
+					log.Printf("Quantity of tacos: %+v", o.Value)
+					return
+				}
+			default:
+				log.Fatalf("Unknown option %s\n", o.Name)
+			}
+		}
+	default:
+		return
+	}
+
+	h.State.Lock()
+	h.State.SentLog[senderID] += quantity
+
+	for _, recipientID := range recipientIDs {
+		h.State.ReceivedLog[recipientID] += quantity
+	}
+	h.State.Unlock()
+
+	err := h.DiscordBotClient.CreateInteractionResponse(discord.InteractionCreateCallbackResponse{
+		ID:    interaction.ID,
+		Token: interaction.Token,
+		Body:  discord.InteractionResponseObject{
+			Type: discord.InteractionCallbackTypeCHANNEL_MESSAGE_WITH_SOURCE,
+			Data: &discord.InteractionCallbackData{
+				TTS:     new(false),
+				Content: new(fmt.Sprintf("<@%s> sent <@%s> :taco: %d!", senderID, recipientIDs[0], quantity)),
+				Flags:   nil,
+			},
+		},
+	})
+	if err != nil {
+		log.Fatalf("%s", err.Error())
 	}
 }

@@ -26,38 +26,24 @@ func main() {
 	}
 	log.Println("Discord: OK")
 
-	// Registers the default TacoHiro commands.
-	// TODO: Register commands
-	// - Leaderboards?
-	log.Println("Slash commands: Initializing...")
-	commandsClient := discord.CommandsClient(client)
-	err = commandsClient.CreateCommand(discord.CreateCommandParams{
-		Name:        "give",
-		Type:        discord.CommandTypeChatInput,
-		Description: "Give tacos to others!",
-		Options:     []discord.CommandOption{
-			{
-				Type:         discord.CommandOptionTypeMentionable,
-				Name:         "users",
-				Description:  "Who would you like to give tacos to?",
-				Required:     true,
-				Autocomplete: true,
-			},
-			{
-				Type:        discord.CommandOptionTypeInteger,
-				Name:        "quantity",
-				Description: "How many?",
-				Required:    true,
-				Autocomplete: true,
-			},
-	},
-	})
+	log.Println("Discord: Initializing default slash commands...")
+	// TODO: init commands
+	err = interactions.InitCommands(client)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("discord: Failed to initialize slash commands. %s", err.Error()))
 	}
-	log.Println("Slash commands: OK")
 
-	interactionsHandler := interactions.Handler{Config: config}
+	log.Println("server: Registering routes...")
+	interactionsHandler := interactions.Handler{
+		DiscordBotConfig: config,
+		State: interactions.InMemoryCounter{
+			SentLog:     make(map[string]int64),
+			ReceivedLog: make(map[string]int64),
+		},
+		DiscordBotClient: client,
+	}
 	interactionsHandler.Routes()
+	log.Println("server: Registered routes")
+	log.Println("server: Running...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

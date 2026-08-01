@@ -5,15 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 )
 
 type (
-	CommandsClient = *Client
-
 	CommandOption struct {
 		Type CommandOptionType `json:"type"`
-		Name string `json:"name"`
+		Name CommandOptionName `json:"name"`
 		Description string `json:"description"`
 		Required bool `json:"required"`
 		Autocomplete bool `json:"autocomplete"`
@@ -27,6 +24,7 @@ type (
 	}
 
 	CommandOptionType int8
+	CommandOptionName string
 )
 
 const (
@@ -57,45 +55,34 @@ const (
 
 	CommandTypeChatInput = 1
 	CommandTypeUser = 2
-	CommandTypeMessage = 2
-	CommandTypePrimaryEntryPoint = 2
+	CommandTypeMessage = 3
+	CommandTypePrimaryEntryPoint = 4
 )
 
 var (
-	ErrFailedToCreateCommand = fmt.Errorf("discord: failed to create command")
+	ErrDiscordCommandFailedToCreate = fmt.Errorf("discord: failed to create command")
+	ErrDiscordCommandFailedToSerializeCreatePayload = fmt.Errorf("discord: failed to serialize create command payload")
 )
 
-func (cc CommandsClient) CreateCommand(params CreateCommandParams) error {
-	url := fmt.Sprintf("%s/applications/%s/commands", DISCORD_BASE_URL, cc.Config.ApplicationID)
-
-	bodyRaw, err := json.Marshal(params)
+func (c *Client) CreateCommand(body CreateCommandParams) error {
+	bodyRaw, err := json.Marshal(body)
 	if err != nil {
-		panic("bye")
+		return fmt.Errorf("%s %w", err.Error(), ErrDiscordCommandFailedToSerializeCreatePayload)
 	}
 
+	url := fmt.Sprintf("%s/applications/%s/commands", DISCORD_BASE_URL, c.Config.ApplicationID)
 	buf := bytes.NewBuffer(bodyRaw)
-	req, err := http.NewRequest(http.MethodPost, url, buf)
+	res, err := c.Do(url, buf)
 	if err != nil {
-		panic(fmt.Sprintf("failed to register command: %s", err.Error()))
+		return fmt.Errorf("%s %w", err.Error(), ErrDiscordCommandFailedToCreate)
 	}
-
-	req.Header.Add("authorization", fmt.Sprintf("Bot %s", cc.Config.Token))
-	req.Header.Add("content-type", "application/json")
-
-	res, err := cc.HTTPClient.Do(req)
-	if err != nil {
-		panic(fmt.Sprintf("failed to send request: %s", err.Error()))
-	}
-
-	// log.Printf("\nSlash commands: Register command status code: %d\n", res.StatusCode)
 
 	if !(res.StatusCode == 200 || res.StatusCode == 201) {
 		rawRes, err := io.ReadAll(res.Body)
 		if err != nil {
-			panic("failed to read from body")
+			return fmt.Errorf("%s %w", err.Error(), ErrDiscordCommandFailedToCreate)
 		}
 		fmt.Printf("%s", string(rawRes))
-		return fmt.Errorf("%s %w", err.Error(), ErrFailedToCreateCommand)
 	}
 
 	return nil

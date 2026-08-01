@@ -20,7 +20,7 @@
         export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${pkgs.lib.makeLibraryPath [ pkgs'.sqlite ]}"
       '';
 
-      buildInputs = with pkgs; [ go gopls pkgs'.sqlite ];
+      buildInputs = with pkgs; [ go gopls pkgs'.sqlite watchexec ];
     };
   };
 }

@@ -2,6 +2,7 @@ package discord
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -39,4 +40,15 @@ func NewClient(httpClient *http.Client, config *DiscordConfig) (*Client, error) 
 // TODO: IMPLEMENT
 func (cc Client) HealthCheck() error {
 	return nil
+}
+
+func (c *Client) Do(url string, body io.Reader) (*http.Response, error ) {
+	req, err := http.NewRequest(http.MethodPost, url, body)
+	if err != nil {
+		panic(fmt.Sprintf("failed to register command: %s", err.Error()))
+	}
+
+	req.Header.Add("authorization", fmt.Sprintf("Bot %s", c.Config.Token))
+	req.Header.Add("content-type", "application/json")
+	return c.HTTPClient.Do(req)
 }
