@@ -18,6 +18,7 @@
         set +a
 
         export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${pkgs.lib.makeLibraryPath [ pkgs'.sqlite ]}"
+        export CGO_ENABLED=1
       '';
 
       buildInputs = with pkgs; [ go gopls pkgs'.sqlite watchexec gcc ];
