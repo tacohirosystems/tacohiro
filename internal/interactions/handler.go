@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand/v2"
 	"net/http"
 	"sync"
 
@@ -153,10 +154,28 @@ func (h *Handler) processSlashCommand(interaction discord.Interaction[discord.Ap
 	h.State.Lock()
 	h.State.SentLog[senderID] += quantity
 
+	var loseOneTaco bool
+	if rand.Float64() < 0.005 {
+		loseOneTaco = true
+	}
+
+	if loseOneTaco && quantity > 1 {
+		quantity -= 1
+	}
+
+	var recipientsStr string
 	for _, recipientID := range recipientIDs {
 		h.State.ReceivedLog[recipientID] += quantity
+		recipientsStr = fmt.Sprintf("%s <@%s>", recipientsStr, recipientID)
 	}
 	h.State.Unlock()
+
+	var msg string
+	if loseOneTaco {
+		msg = fmt.Sprintf("<@%s> tried to give %s %dx :taco:! But Hiro ate one so it's one less...", senderID, recipientsStr, quantity+1)
+	} else {
+		msg = fmt.Sprintf("<@%s> gave %s %dx :taco:!", senderID, recipientsStr, quantity)
+	}
 
 	err := h.DiscordBotClient.CreateInteractionResponse(discord.InteractionCreateCallbackResponse{
 		ID:    interaction.ID,
@@ -165,7 +184,7 @@ func (h *Handler) processSlashCommand(interaction discord.Interaction[discord.Ap
 			Type: discord.InteractionCallbackTypeCHANNEL_MESSAGE_WITH_SOURCE,
 			Data: &discord.InteractionCallbackData{
 				TTS:     new(false),
-				Content: new(fmt.Sprintf("<@%s> sent <@%s> :taco: %d!", senderID, recipientIDs[0], quantity)),
+				Content: new(msg),
 				Flags:   nil,
 			},
 		},
