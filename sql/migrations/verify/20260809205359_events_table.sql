@@ -1,6 +1,6 @@
 -- Verify tacohiro:20260809205359_events_table on sqlite
 
-BEGIN;
+BEGIN DEFERRED;
 
 -- XXX Add verifications here.
 
