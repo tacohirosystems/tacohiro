@@ -1,6 +1,8 @@
 package interactions
 
-import "github.com/tacohirosystems/tacohiro/internal/discord"
+import (
+	"github.com/tacohirosystems/tacohiro/internal/discord"
+)
 
 const (
 	CommandOptionNameTacoQuantity discord.CommandOptionName = "quantity"

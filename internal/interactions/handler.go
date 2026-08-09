@@ -151,31 +151,43 @@ func (h *Handler) processSlashCommand(interaction discord.Interaction[discord.Ap
 		return
 	}
 
-	h.State.Lock()
-	h.State.SentLog[senderID] += quantity
+	var recipientsStr string
+	for i := 0; i < len(recipientIDs); i++  {
+		if i == 0 {
+			recipientsStr = fmt.Sprintf("<@%s>", recipientIDs[i])
+			continue
+		}
+
+		recipientsStr = fmt.Sprintf("%s <@%s>", recipientsStr, recipientIDs[i])
+	}
+
+	var msg string
+	if quantity == 0 {
+		msg = fmt.Sprintf("<@%s> gave %s %dx :taco:. _Hm... someone is stingy_", senderID, recipientsStr, quantity)
+	}
+
+	if quantity < 0 {
+		msg = fmt.Sprintf("<@%s> gave %s a :taco: debt of %d.", senderID, recipientsStr, quantity * -1)
+	}
 
 	var loseOneTaco bool
-	if rand.Float64() < 0.005 {
+	if rand.Float64() < 0.05 {
 		loseOneTaco = true
 	}
 
-	if loseOneTaco && quantity > 1 {
+	if loseOneTaco && quantity >= 1 {
 		quantity -= 1
-	}
-
-	var recipientsStr string
-	for _, recipientID := range recipientIDs {
-		h.State.ReceivedLog[recipientID] += quantity
-		recipientsStr = fmt.Sprintf("%s <@%s>", recipientsStr, recipientID)
-	}
-	h.State.Unlock()
-
-	var msg string
-	if loseOneTaco {
 		msg = fmt.Sprintf("<@%s> tried to give %s %dx :taco:! But Hiro ate one so it's one less...", senderID, recipientsStr, quantity+1)
-	} else {
+	} else if quantity >= 1 {
 		msg = fmt.Sprintf("<@%s> gave %s %dx :taco:!", senderID, recipientsStr, quantity)
 	}
+
+	h.State.Lock()
+	h.State.SentLog[senderID] += quantity
+	for _, recipientID := range recipientIDs {
+		h.State.ReceivedLog[recipientID] += quantity
+	}
+	h.State.Unlock()
 
 	err := h.DiscordBotClient.CreateInteractionResponse(discord.InteractionCreateCallbackResponse{
 		ID:    interaction.ID,
