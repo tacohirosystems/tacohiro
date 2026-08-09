@@ -1,0 +1,5 @@
+%syntax-version=1.0.0
+%project=tacohiro
+%uri=https://github.com/tacohirosystems/tacohiro
+
+20260809205359_events_table 2026-08-09T18:54:00Z stream <stream@litten> # Add events table

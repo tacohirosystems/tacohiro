@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"sync"
 
+	sqlite "github.com/tacohirosystems/tacohiro/internal/database"
 	"github.com/tacohirosystems/tacohiro/internal/discord"
 )
 
@@ -20,6 +21,7 @@ type (
 		// FIXME: Placeholder
 		State InMemoryCounter
 		DiscordBotClient *discord.Client
+		DB map[string]*sqlite.DB
 	}
 
 	InMemoryCounter struct {
