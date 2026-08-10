@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"sync"
@@ -22,6 +22,7 @@ type (
 		State            InMemoryCounter
 		DiscordBotClient *discord.Client
 		DB               map[string]*sqlite.DB
+		Logger           *slog.Logger
 	}
 
 	InMemoryCounter struct {
@@ -55,7 +56,7 @@ func (h *Handler) ProcessInteractions(w http.ResponseWriter, r *http.Request) {
 	sigHex := r.Header.Get("X-Signature-Ed25519")
 	sig, err := hex.DecodeString(sigHex)
 	if err != nil {
-		log.Print("Invalid signature")
+		h.Logger.Info("Invalid signature")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -64,15 +65,14 @@ func (h *Handler) ProcessInteractions(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Print("Invalid body format")
+		h.Logger.Info("Invalid body format")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	msg := fmt.Sprintf("%s%s", ts, body)
-	// log.Printf("\n%s\n", msg)
 	if !ed25519.Verify(h.DiscordBotConfig.PublicKey, []byte(msg), sig) {
-		log.Print("Invalid message\n")
+		h.Logger.Info("Invalid message")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -80,7 +80,7 @@ func (h *Handler) ProcessInteractions(w http.ResponseWriter, r *http.Request) {
 	var rawPayload map[string]any
 	err = json.Unmarshal(body, &rawPayload)
 	if err != nil {
-		log.Fatalf("failed to deserialize %s\n", err.Error())
+		h.Logger.Error(fmt.Sprintf("failed to deserialize %s\n", err.Error()))
 	}
 
 	switch discord.InteractionType(int8(rawPayload["type"].(float64))) {
@@ -90,18 +90,18 @@ func (h *Handler) ProcessInteractions(w http.ResponseWriter, r *http.Request) {
 		var interactionPayload discord.Interaction[discord.ApplicationCommandData]
 		err = json.Unmarshal(body, &interactionPayload)
 		if err != nil {
-			log.Fatalf("failed to deserialize interaction: %s", err.Error())
+			h.Logger.Error(fmt.Sprintf("failed to deserialize interaction: %s", err.Error()))
 			return
 		}
 
-		log.Printf("Interaction payload: %+v\n", interactionPayload)
-		log.Printf("Received a slash command: %s\n", interactionPayload.Data.Name)
+		h.Logger.Debug(fmt.Sprintf("Interaction payload: %+v\n", interactionPayload))
+		h.Logger.Debug(fmt.Sprintf("Received a slash command: %s\n", interactionPayload.Data.Name))
 		if interactionPayload.Data == nil {
 			return
 		}
 
 		h.processSlashCommand(interactionPayload)
-		log.Printf("Counters: %+v %+v", h.State.GetSentLog(), h.State.GetReceivedLog())
+		h.Logger.Debug(fmt.Sprintf("Counters: %+v %+v", h.State.GetSentLog(), h.State.GetReceivedLog()))
 		w.WriteHeader(http.StatusOK)
 	default:
 		w.WriteHeader(http.StatusOK)
@@ -123,30 +123,30 @@ func (h *Handler) processSlashCommand(interaction discord.Interaction[discord.Ap
 				if o.Value.ValueString == nil {
 					return
 				}
-				log.Printf("Recipient ID: %s\n", *o.Value.ValueString)
+				h.Logger.Debug(fmt.Sprintf("Recipient ID: %s\n", *o.Value.ValueString))
 				recipientIDs = append(recipientIDs, *o.Value.ValueString)
 			case CommandOptionNameRecipientExtra1:
 				if o.Value.ValueString == nil {
 					return
 				}
-				log.Printf("Recipient ID: %s\n", *o.Value.ValueString)
+				h.Logger.Debug(fmt.Sprintf("Recipient ID: %s\n", *o.Value.ValueString))
 				recipientIDs = append(recipientIDs, *o.Value.ValueString)
 			case CommandOptionNameRecipientExtra2:
 				if o.Value.ValueString == nil {
 					return
 				}
-				log.Printf("Recipient ID: %s\n", *o.Value.ValueString)
+				h.Logger.Debug(fmt.Sprintf("Recipient ID: %s\n", *o.Value.ValueString))
 				recipientIDs = append(recipientIDs, *o.Value.ValueString)
 			case "quantity":
 				if o.Value.ValueInt64 != nil {
-					log.Printf("Quantity of tacos: %d\n", *o.Value.ValueInt64)
+					h.Logger.Debug(fmt.Sprintf("Quantity of tacos: %d\n", *o.Value.ValueInt64))
 					quantity = *o.Value.ValueInt64
 				} else {
-					log.Printf("Quantity of tacos: %+v", o.Value)
+					h.Logger.Debug(fmt.Sprintf("Quantity of tacos: %+v", o.Value))
 					return
 				}
 			default:
-				log.Fatalf("Unknown option %s\n", o.Name)
+				h.Logger.Error(fmt.Sprintf("Unknown option %s\n", o.Name))
 			}
 		}
 	default:
@@ -204,6 +204,6 @@ func (h *Handler) processSlashCommand(interaction discord.Interaction[discord.Ap
 		},
 	})
 	if err != nil {
-		log.Fatalf("%s", err.Error())
+		h.Logger.Error(fmt.Sprintf("%s", err.Error()))
 	}
 }

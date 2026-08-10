@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	sqlite "github.com/tacohirosystems/tacohiro/internal/database"
@@ -12,17 +13,29 @@ import (
 )
 
 func main() {
+	loggerOpts := slog.HandlerOptions{
+		AddSource:   false,
+		Level:       slog.LevelDebug,
+		ReplaceAttr: nil,
+	}
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &loggerOpts))
+	if logger == nil {
+		panic("Logger is nil")
+	}
+	logger.Debug("Logger: Initialized")
+
+	// TODO: Make file path for user DBs configurable
 	userDBPaths, err := filepath.Glob("./user-*.db")
 	userDBs := make(map[string]*sqlite.DB, len(userDBPaths))
 	for _, userDBPath := range userDBPaths {
 		userID := userDBPath[5 : len(userDBPath)-3]
-		fmt.Println(userDBPath)
-		fmt.Println(userID)
+		logger.Debug("Initializing user DB", "step", "database", "path", userDBPath, "user_id", userID)
 
 		userDB := &sqlite.DB{
 			Path:      userDBPath,
 			ReadPool:  make(chan struct{}, 10),
 			WritePool: make(chan struct{}, 1),
+			Logger:    logger,
 		}
 
 		userDB.SetMaxReadConnections(10)
@@ -31,30 +44,32 @@ func main() {
 		if err := userDB.SetPragmas(); err != nil {
 			panic(err.Error())
 		}
+		logger.Debug("Initialized user DB", "step", "database", "path", userDBPath, "user_id", userID)
 		userDBs[userID] = userDB
 	}
+	logger.Info("OK", "step", "database", "count", len(userDBPaths))
 
-	log.Println("Discord: Initializing...")
 	// Initializes Discord configuration used for the SDK.
 	config, err := discord.GetConfigFromEnv()
 	if err != nil {
-		panic(fmt.Sprintf("%s", err.Error()))
+		logger.Error(err.Error(), "step", "discord")
+		panic("Failed to initialize Discord")
 	}
 
 	client, err := discord.NewClient(http.DefaultClient, config)
 	if err != nil {
 		panic(fmt.Sprintf("%s", err.Error()))
 	}
-	log.Println("Discord: OK")
 
-	log.Println("Discord: Initializing default slash commands...")
+	logger.Debug("Initializing default slash commands...")
 	// TODO: init commands
 	err = interactions.InitCommands(client)
 	if err != nil {
 		panic(fmt.Sprintf("discord: Failed to initialize slash commands. %s", err.Error()))
 	}
+	logger.Info("OK", "step", "discord")
 
-	log.Println("server: Registering routes...")
+	logger.Debug("Registering routes...", "step", "server")
 	interactionsHandler := interactions.Handler{
 		DiscordBotConfig: config,
 		DB:               userDBs,
@@ -63,9 +78,10 @@ func main() {
 			ReceivedLog: make(map[string]int64),
 		},
 		DiscordBotClient: client,
+		Logger:           logger,
 	}
 	interactionsHandler.Routes()
-	log.Println("server: Registered routes")
-	log.Println("server: Running...")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	logger.Info("Registered routes", "step", "server")
+	logger.Info("server: Running...", "step", "server")
+	logger.Error(http.ListenAndServe(":8080", nil).Error())
 }

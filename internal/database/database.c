@@ -18,7 +18,7 @@ int init(sqlite3 *db) {
     sqlite3_free(zErrMsg);
     return rc;
   }
-  printf("Initialized SQLite with:\n %s\n", initStmt);
-  printf("Completed query execution without any issues\n");
+  // printf("Initialized SQLite with:\n %s\n", initStmt);
+  // printf("Completed query execution without any issues\n");
   return 0;
 }
