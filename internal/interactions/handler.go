@@ -19,14 +19,14 @@ type (
 	Handler struct {
 		DiscordBotConfig *discord.DiscordConfig
 		// FIXME: Placeholder
-		State InMemoryCounter
+		State            InMemoryCounter
 		DiscordBotClient *discord.Client
-		DB map[string]*sqlite.DB
+		DB               map[string]*sqlite.DB
 	}
 
 	InMemoryCounter struct {
 		sync.Mutex
-		SentLog map[string]int64
+		SentLog     map[string]int64
 		ReceivedLog map[string]int64
 	}
 )
@@ -154,7 +154,7 @@ func (h *Handler) processSlashCommand(interaction discord.Interaction[discord.Ap
 	}
 
 	var recipientsStr string
-	for i := 0; i < len(recipientIDs); i++  {
+	for i := 0; i < len(recipientIDs); i++ {
 		if i == 0 {
 			recipientsStr = fmt.Sprintf("<@%s>", recipientIDs[i])
 			continue
@@ -169,7 +169,7 @@ func (h *Handler) processSlashCommand(interaction discord.Interaction[discord.Ap
 	}
 
 	if quantity < 0 {
-		msg = fmt.Sprintf("<@%s> gave %s a :taco: debt of %d.", senderID, recipientsStr, quantity * -1)
+		msg = fmt.Sprintf("<@%s> gave %s a :taco: debt of %d.", senderID, recipientsStr, quantity*-1)
 	}
 
 	var loseOneTaco bool
@@ -194,7 +194,7 @@ func (h *Handler) processSlashCommand(interaction discord.Interaction[discord.Ap
 	err := h.DiscordBotClient.CreateInteractionResponse(discord.InteractionCreateCallbackResponse{
 		ID:    interaction.ID,
 		Token: interaction.Token,
-		Body:  discord.InteractionResponseObject{
+		Body: discord.InteractionResponseObject{
 			Type: discord.InteractionCallbackTypeCHANNEL_MESSAGE_WITH_SOURCE,
 			Data: &discord.InteractionCallbackData{
 				TTS:     new(false),

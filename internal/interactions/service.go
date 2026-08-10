@@ -5,8 +5,8 @@ import (
 )
 
 const (
-	CommandOptionNameTacoQuantity discord.CommandOptionName = "quantity"
-	CommandOptionNameRecipient discord.CommandOptionName = "recipient"
+	CommandOptionNameTacoQuantity    discord.CommandOptionName = "quantity"
+	CommandOptionNameRecipient       discord.CommandOptionName = "recipient"
 	CommandOptionNameRecipientExtra1 discord.CommandOptionName = "recipient_2"
 	CommandOptionNameRecipientExtra2 discord.CommandOptionName = "recipient_3"
 )
@@ -19,7 +19,7 @@ func InitCommands(client *discord.Client) error {
 		Name:        "give",
 		Type:        discord.CommandTypeChatInput,
 		Description: "Give tacos to others!",
-		Options:     []discord.CommandOption{
+		Options: []discord.CommandOption{
 			{
 				Type:         discord.CommandOptionTypeMentionable,
 				Name:         CommandOptionNameRecipient,
@@ -28,10 +28,10 @@ func InitCommands(client *discord.Client) error {
 				Autocomplete: true,
 			},
 			{
-				Type:        discord.CommandOptionTypeInteger,
-				Name:        CommandOptionNameTacoQuantity,
-				Description: "How many?",
-				Required:    true,
+				Type:         discord.CommandOptionTypeInteger,
+				Name:         CommandOptionNameTacoQuantity,
+				Description:  "How many?",
+				Required:     true,
 				Autocomplete: true,
 			},
 			{

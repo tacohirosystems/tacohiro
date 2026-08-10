@@ -10,19 +10,19 @@ import (
 type (
 	DiscordConfig struct {
 		ApplicationID string
-		PublicKey ed25519.PublicKey
-		Token BotToken
+		PublicKey     ed25519.PublicKey
+		Token         BotToken
 	}
 )
 
 const (
 	DISCORD_APPLICATION_ID_KEY string = "DISCORD_APPLICATION_ID"
-	DISCORD_PUBLIC_KEY_KEY string = "DISCORD_PUBLIC_KEY"
-	DISCORD_BOT_TOKEN_KEY string = "DISCORD_BOT_TOKEN"
+	DISCORD_PUBLIC_KEY_KEY     string = "DISCORD_PUBLIC_KEY"
+	DISCORD_BOT_TOKEN_KEY      string = "DISCORD_BOT_TOKEN"
 )
 
 var (
-	ErrDiscordRequiredConfig = fmt.Errorf("discord: a required field is missing or empty")
+	ErrDiscordRequiredConfig   = fmt.Errorf("discord: a required field is missing or empty")
 	ErrDiscordInvalidPublicKey = fmt.Errorf("discord: public key is invalid. must be in hex")
 )
 

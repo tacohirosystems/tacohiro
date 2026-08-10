@@ -23,8 +23,13 @@
       CGO_ENABLED = 1;
 
       buildInputs = with pkgs; [
-        go gopls pkgs'.sqlite watchexec gcc pkgs'.sqitchSqlite
+        go
+        gopls
+        watchexec
+        gcc
         just
+        pkgs'.sqlite
+        pkgs'.sqitchSqlite
       ];
     };
   };
