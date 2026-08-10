@@ -2,6 +2,9 @@
 
 build happier and grateful communities. one taco at a time. 🌮
 
+TacoHiro's dependencies are deliberately kept tiny. The only external dependency
+it has is `sqlite3.h` with 0 Go third-party libraries.
+
 ## Integrations
 
 - Discord (WIP)
