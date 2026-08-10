@@ -11,16 +11,6 @@ import (
 )
 
 type (
-	// https://docs.discord.com/developers/resources/user#user-object
-	User struct {
-		ID            string `json:"id"`
-		Username      string `json:"username"`
-		Discriminator string `json:"discriminator"`
-		GlobalName    string `json:"global_name"`
-		Bot           bool   `json:"bot"`
-		System        bool   `json:"system"`
-	}
-
 	GuildMember struct {
 		User User   `json:"user"`
 		Nick string `json:"nick"`

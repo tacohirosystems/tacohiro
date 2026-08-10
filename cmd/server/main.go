@@ -9,6 +9,7 @@ import (
 
 	sqlite "github.com/tacohirosystems/tacohiro/internal/database"
 	"github.com/tacohirosystems/tacohiro/internal/discord"
+	"github.com/tacohirosystems/tacohiro/internal/events"
 	"github.com/tacohirosystems/tacohiro/internal/interactions"
 )
 
@@ -26,9 +27,9 @@ func main() {
 
 	// TODO: Make file path for user DBs configurable
 	userDBPaths, err := filepath.Glob("./user-*.db")
-	userDBs := make(map[string]*sqlite.DB, len(userDBPaths))
+	userDBs := make(map[discord.UserID]*sqlite.DB, len(userDBPaths))
 	for _, userDBPath := range userDBPaths {
-		userID := userDBPath[5 : len(userDBPath)-3]
+		userID := discord.UserID(userDBPath[5 : len(userDBPath)-3])
 		logger.Debug("Initializing user DB", "step", "database", "path", userDBPath, "user_id", userID)
 
 		userDB := &sqlite.DB{
@@ -69,16 +70,20 @@ func main() {
 	}
 	logger.Info("OK", "step", "discord")
 
+	repository := events.Repository{
+		DiscordDBs: userDBs,
+	}
+
 	logger.Debug("Registering routes...", "step", "server")
 	interactionsHandler := interactions.Handler{
 		DiscordBotConfig: config,
-		DB:               userDBs,
 		State: interactions.InMemoryCounter{
-			SentLog:     make(map[string]int64),
-			ReceivedLog: make(map[string]int64),
+			SentLog:     make(map[discord.UserID]int64),
+			ReceivedLog: make(map[discord.UserID]int64),
 		},
 		DiscordBotClient: client,
 		Logger:           logger,
+		Repository: &repository,
 	}
 	interactionsHandler.Routes()
 	logger.Info("Registered routes", "step", "server")

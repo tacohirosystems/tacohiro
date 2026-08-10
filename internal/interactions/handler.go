@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"sync"
 
-	sqlite "github.com/tacohirosystems/tacohiro/internal/database"
 	"github.com/tacohirosystems/tacohiro/internal/discord"
+	"github.com/tacohirosystems/tacohiro/internal/events"
 )
 
 type (
@@ -21,14 +21,15 @@ type (
 		// FIXME: Placeholder
 		State            InMemoryCounter
 		DiscordBotClient *discord.Client
-		DB               map[string]*sqlite.DB
 		Logger           *slog.Logger
+		// NOTE: Kinda weird but it's ok
+		Repository       *events.Repository
 	}
 
 	InMemoryCounter struct {
 		sync.Mutex
-		SentLog     map[string]int64
-		ReceivedLog map[string]int64
+		SentLog     map[discord.UserID]int64
+		ReceivedLog map[discord.UserID]int64
 	}
 )
 
@@ -36,13 +37,13 @@ const (
 	SlashCommandGive discord.ApplicationCommandName = "give"
 )
 
-func (s *InMemoryCounter) GetSentLog() map[string]int64 {
+func (s *InMemoryCounter) GetSentLog() map[discord.UserID]int64 {
 	s.Lock()
 	defer s.Unlock()
 	return s.SentLog
 }
 
-func (s *InMemoryCounter) GetReceivedLog() map[string]int64 {
+func (s *InMemoryCounter) GetReceivedLog() map[discord.UserID]int64 {
 	s.Lock()
 	defer s.Unlock()
 	return s.ReceivedLog
@@ -111,7 +112,7 @@ func (h *Handler) ProcessInteractions(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) processSlashCommand(interaction discord.Interaction[discord.ApplicationCommandData]) {
 	senderID := interaction.Member.User.ID
-	var recipientIDs []string
+	var recipientIDs []discord.UserID
 	var quantity int64
 	switch interaction.Data.Name {
 	case SlashCommandGive:
@@ -124,19 +125,19 @@ func (h *Handler) processSlashCommand(interaction discord.Interaction[discord.Ap
 					return
 				}
 				h.Logger.Debug(fmt.Sprintf("Recipient ID: %s\n", *o.Value.ValueString))
-				recipientIDs = append(recipientIDs, *o.Value.ValueString)
+				recipientIDs = append(recipientIDs, discord.UserID(*o.Value.ValueString))
 			case CommandOptionNameRecipientExtra1:
 				if o.Value.ValueString == nil {
 					return
 				}
 				h.Logger.Debug(fmt.Sprintf("Recipient ID: %s\n", *o.Value.ValueString))
-				recipientIDs = append(recipientIDs, *o.Value.ValueString)
+				recipientIDs = append(recipientIDs, discord.UserID(*o.Value.ValueString))
 			case CommandOptionNameRecipientExtra2:
 				if o.Value.ValueString == nil {
 					return
 				}
 				h.Logger.Debug(fmt.Sprintf("Recipient ID: %s\n", *o.Value.ValueString))
-				recipientIDs = append(recipientIDs, *o.Value.ValueString)
+				recipientIDs = append(recipientIDs, discord.UserID(*o.Value.ValueString))
 			case "quantity":
 				if o.Value.ValueInt64 != nil {
 					h.Logger.Debug(fmt.Sprintf("Quantity of tacos: %d\n", *o.Value.ValueInt64))
