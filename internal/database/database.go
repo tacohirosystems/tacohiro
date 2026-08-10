@@ -16,6 +16,7 @@ type (
 
 		ReadPool  chan struct{}
 		WritePool chan struct{}
+		Logger    *slog.Logger
 	}
 
 	ReadConn struct {
@@ -28,24 +29,33 @@ type (
 )
 
 var (
-	ErrDatabaseReleaseConn = fmt.Errorf("failed to release database connection")
+	ErrDatabaseReleaseConn               = fmt.Errorf("failed to release database connection")
+	ErrDatabaseFailedToInitializePragmas = fmt.Errorf("failed to initialize the database pragmas")
+	ErrDatabaseFailedToAcquireReadConn   = fmt.Errorf("failed to acquire read connection")
+	ErrDatabaseFailedToAcquireWriteConn  = fmt.Errorf("failed to acquire write connection")
 )
 
 func (db *DB) releaseWrite(conn *WriteConn) error {
+	db.Logger.Debug("Releasing write connection...")
 	var err error
 	if rc := C.sqlite3_close_v2(conn.conn); rc != C.SQLITE_OK {
-		err = fmt.Errorf("%w: %d", ErrDatabaseReleaseConn, rc)
+		db.Logger.Error(ErrDatabaseReleaseConn.Error(), "sqlite_err_code", rc)
+		err = ErrDatabaseReleaseConn
 	}
 	db.WritePool <- struct{}{}
+	db.Logger.Debug("Returned to conn write pool")
 	return err
 }
 
 func (db *DB) releaseRead(conn *ReadConn) error {
+	db.Logger.Debug("Releasing read connection...")
 	var err error
 	if rc := C.sqlite3_close_v2(conn.conn); rc != C.SQLITE_OK {
-		err = fmt.Errorf("%w: %d", ErrDatabaseReleaseConn, rc)
+		db.Logger.Error(ErrDatabaseReleaseConn.Error(), "sqlite_err_code", rc)
+		err = ErrDatabaseReleaseConn
 	}
 	db.ReadPool <- struct{}{}
+	db.Logger.Debug("Returned to conn read pool")
 	return err
 }
 
@@ -76,21 +86,24 @@ func (db *DB) Read(execQuery func(conn *ReadConn) error) error {
 }
 
 func (db *DB) getReadConn() (*ReadConn, error) {
+	db.Logger.Debug("Acquiring read connection...")
 	conn := &ReadConn{conn: nil}
 	if rc := C.sqlite3_open_v2(C.CString(db.Path), &conn.conn, C.int(C.SQLITE_OPEN_READONLY), nil); rc != C.SQLITE_OK {
-		slog.Info(fmt.Sprintf("failed to acquire a read connection: %d", rc))
-		return nil, fmt.Errorf("TODO: IT EXPLODED!")
+		db.Logger.Info("failed to acquire a read connection", "sqlite_err_code", rc)
+		return nil, ErrDatabaseFailedToAcquireReadConn
+
 	}
 	return conn, nil
 }
 
 func (db *DB) getWriteConn() (*WriteConn, error) {
+	db.Logger.Debug("Acquiring write connection...")
 	<-db.WritePool
 	conn := &WriteConn{conn: nil}
 
 	if rc := C.sqlite3_open_v2(C.CString(db.Path), &conn.conn, C.int(C.SQLITE_OPEN_READWRITE), nil); rc != C.SQLITE_OK {
-		slog.Info(fmt.Sprintf("failed to acquire a write connection: %d", rc))
-		return nil, fmt.Errorf("TODO: IT EXPLODED!")
+		db.Logger.Error("failed to acquire a write connection", "sqlite_err_code", rc)
+		return nil, ErrDatabaseFailedToAcquireWriteConn
 	}
 	return conn, nil
 }
@@ -102,6 +115,10 @@ func (db *DB) SetMaxReadConnections(max int64) {
 }
 
 func (db *DB) SetMaxWriteConnections(max int64) {
+	if max > 1 {
+		db.Logger.Warn("Max write connection set to %d, more than 1")
+	}
+
 	for range max {
 		db.WritePool <- struct{}{}
 	}
@@ -110,8 +127,8 @@ func (db *DB) SetMaxWriteConnections(max int64) {
 func (db *DB) SetPragmas() error {
 	return db.Write(func(conn *WriteConn) error {
 		if rc := C.init(conn.conn); rc != C.SQLITE_OK {
-			slog.Info(fmt.Sprintf("failed to initialize the database: %d", rc))
-			return fmt.Errorf("failed to initialize the database: %d", rc)
+			db.Logger.Error("failed to initialize the database", "sqlite_err_code", rc)
+			return ErrDatabaseFailedToInitializePragmas
 		}
 		return nil
 	})
