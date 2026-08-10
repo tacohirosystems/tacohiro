@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/tacohirosystems/tacohiro/internal/database"
+	sqlite "github.com/tacohirosystems/tacohiro/internal/database"
 	"github.com/tacohirosystems/tacohiro/internal/discord"
 	"github.com/tacohirosystems/tacohiro/internal/interactions"
 )

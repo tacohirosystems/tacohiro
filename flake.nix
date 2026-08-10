@@ -25,6 +25,7 @@
       buildInputs = with pkgs; [
         go
         gopls
+        gotools
         watchexec
         gcc
         just
