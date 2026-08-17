@@ -9,6 +9,7 @@ import (
 
 	sqlite "github.com/tacohirosystems/tacohiro/internal/database"
 	"github.com/tacohirosystems/tacohiro/internal/discord"
+	"github.com/tacohirosystems/tacohiro/internal/events"
 	"github.com/tacohirosystems/tacohiro/internal/interactions"
 )
 
@@ -26,9 +27,9 @@ func main() {
 
 	// TODO: Make file path for user DBs configurable
 	userDBPaths, err := filepath.Glob("./user-*.db")
-	userDBs := make(map[string]*sqlite.DB, len(userDBPaths))
+	userDBs := make(map[discord.UserID]*sqlite.DB, len(userDBPaths))
 	for _, userDBPath := range userDBPaths {
-		userID := userDBPath[5 : len(userDBPath)-3]
+		userID := discord.UserID(userDBPath[5 : len(userDBPath)-3])
 		logger.Debug("Initializing user DB", "step", "database", "path", userDBPath, "user_id", userID)
 
 		userDB := &sqlite.DB{
@@ -56,29 +57,39 @@ func main() {
 		panic("Failed to initialize Discord")
 	}
 
-	client, err := discord.NewClient(http.DefaultClient, config)
+	discordClient, err := discord.NewClient(http.DefaultClient, config)
 	if err != nil {
 		panic(fmt.Sprintf("%s", err.Error()))
 	}
 
 	logger.Debug("Initializing default slash commands...")
 	// TODO: init commands
-	err = interactions.InitCommands(client)
+	err = interactions.InitCommands(discordClient)
 	if err != nil {
 		panic(fmt.Sprintf("discord: Failed to initialize slash commands. %s", err.Error()))
 	}
 	logger.Info("OK", "step", "discord")
 
 	logger.Debug("Registering routes...", "step", "server")
+	eventsRepository := events.Repository{
+		DiscordDBs: make(map[discord.UserID]*sqlite.DB),
+	}
+
+	eventsService := events.Service{
+		Logger:     logger,
+		Repository: &eventsRepository,
+	}
+
+	interactionsService := interactions.Service{
+		Logger:           logger,
+		EventsService:    &eventsService,
+		DiscordBotClient: discordClient,
+	}
+
 	interactionsHandler := interactions.Handler{
 		DiscordBotConfig: config,
-		DB:               userDBs,
-		State: interactions.InMemoryCounter{
-			SentLog:     make(map[string]int64),
-			ReceivedLog: make(map[string]int64),
-		},
-		DiscordBotClient: client,
 		Logger:           logger,
+		Service:          &interactionsService,
 	}
 	interactionsHandler.Routes()
 	logger.Info("Registered routes", "step", "server")
