@@ -1,13 +1,17 @@
-package sqlite
+package database
+
+import _ "embed"
 
 /*
 #cgo LDFLAGS: -lsqlite3
-#include <database.h>
+#include <stdlib.h>
+#include <sqlite3.h>
 */
 import "C"
 import (
 	"fmt"
 	"log/slog"
+	"unsafe"
 )
 
 type (
@@ -33,6 +37,9 @@ var (
 	ErrDatabaseFailedToInitializePragmas = fmt.Errorf("failed to initialize the database pragmas")
 	ErrDatabaseFailedToAcquireReadConn   = fmt.Errorf("failed to acquire read connection")
 	ErrDatabaseFailedToAcquireWriteConn  = fmt.Errorf("failed to acquire write connection")
+
+	//go:embed sql/init.sql
+	initQuery string
 )
 
 func (db *DB) releaseWrite(conn *WriteConn) error {
@@ -126,7 +133,15 @@ func (db *DB) SetMaxWriteConnections(max int64) {
 
 func (db *DB) SetPragmas() error {
 	return db.Write(func(conn *WriteConn) error {
-		if rc := C.init(conn.conn); rc != C.SQLITE_OK {
+		query := C.CString(initQuery)
+		errMsg := C.CString("")
+		testInt := new(C.int(0))
+		defer C.free(unsafe.Pointer(query))
+		defer C.free(unsafe.Pointer(errMsg))
+
+		db.Logger.Debug("Initializing pragmas...")
+
+		if rc := C.sqlite3_exec(conn.conn, query, nil, unsafe.Pointer(testInt), &errMsg); rc != C.SQLITE_OK {
 			db.Logger.Error("failed to initialize the database", "sqlite_err_code", rc)
 			return ErrDatabaseFailedToInitializePragmas
 		}

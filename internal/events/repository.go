@@ -10,7 +10,7 @@ import (
 
 type (
 	Repository struct {
-		DiscordDBs               map[discord.UserID]*sqlite.DB
+		DiscordDBs map[discord.UserID]*sqlite.DB
 	}
 
 	CreateEvent struct {
@@ -28,7 +28,7 @@ func (r *Repository) insertEvent(c CreateEvent) error {
 		// TODO: Initialize
 	}
 
-	db.Write(func (conn *sqlite.WriteConn) error {
+	db.Write(func(conn *sqlite.WriteConn) error {
 		if conn == nil {
 			// FIXME
 			return nil

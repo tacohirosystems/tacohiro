@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 typedef struct {
+
 } CreateEvent;
 
 int insert_event(sqlite3 *db, char *eventId, char *recipientIds, int64_t quantity) {
